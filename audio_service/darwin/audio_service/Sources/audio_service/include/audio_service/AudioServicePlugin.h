@@ -47,4 +47,5 @@ enum MediaAction {
     ASeekBackward,
     ASeekForward,
     ASetSpeed,
+    ASetLike,
 };

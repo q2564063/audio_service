@@ -105,6 +105,9 @@ enum MediaAction {
   /// Set speed.
   setSpeed,
 
+  /// Set Like. (only on iOS)
+  setLike,
+
   /// Custom MediaAction.
   custom,
 }
@@ -233,6 +236,9 @@ class PlaybackState {
   /// The index of the current item in the queue, if any.
   final int? queueIndex;
 
+  /// Whether the current item is liked.(iOS only)
+  final bool like;
+
   /// Creates a [PlaybackState] with given field values, and with [updateTime]
   /// defaulting to [DateTime.now].
   PlaybackState({
@@ -251,6 +257,7 @@ class PlaybackState {
     this.shuffleMode = AudioServiceShuffleMode.none,
     this.captioningEnabled = false,
     this.queueIndex,
+    this.like = false,
   })  : assert(androidCompactActionIndices == null ||
             androidCompactActionIndices.length <= 3),
         updateTime = updateTime ?? clock.now();
@@ -297,6 +304,7 @@ class PlaybackState {
         shuffleMode: AudioServiceShuffleModeMessage.values[shuffleMode.index],
         captioningEnabled: captioningEnabled,
         queueIndex: queueIndex,
+        like: like,
       );
 
   @override
@@ -321,6 +329,7 @@ class PlaybackState {
         shuffleMode,
         captioningEnabled,
         queueIndex,
+        like,
       );
 
   @override
@@ -343,7 +352,8 @@ class PlaybackState {
           repeatMode == other.repeatMode &&
           shuffleMode == other.shuffleMode &&
           captioningEnabled == other.captioningEnabled &&
-          queueIndex == other.queueIndex;
+          queueIndex == other.queueIndex &&
+          like == other.like;
 }
 
 /// The `copyWith` function type for [PlaybackState].
@@ -364,6 +374,7 @@ abstract class PlaybackStateCopyWith {
     AudioServiceShuffleMode shuffleMode,
     bool captioningEnabled,
     int? queueIndex,
+    bool like,
   });
 }
 
@@ -393,6 +404,7 @@ class _PlaybackStateCopyWith extends PlaybackStateCopyWith {
     Object? shuffleMode = _fakeNull,
     Object? captioningEnabled = _fakeNull,
     Object? queueIndex = _fakeNull,
+    Object? like = _fakeNull,
   }) =>
       PlaybackState(
         processingState: processingState == _fakeNull
@@ -430,6 +442,7 @@ class _PlaybackStateCopyWith extends PlaybackStateCopyWith {
             : captioningEnabled as bool,
         queueIndex:
             queueIndex == _fakeNull ? value.queueIndex : queueIndex as int?,
+        like: like == _fakeNull ? value.like : like as bool,
       );
 }
 
@@ -1962,6 +1975,9 @@ abstract class AudioHandler {
   /// Set the rating.
   Future<void> setRating(Rating rating, [Map<String, dynamic>? extras]);
 
+  /// Set the like.
+  Future<void> setLike(bool like);
+
   /// Set whether captioning is enabled.
   Future<void> setCaptioningEnabled(bool enabled);
 
@@ -2256,6 +2272,10 @@ class CompositeAudioHandler extends AudioHandler {
   @mustCallSuper
   Future<void> setRating(Rating rating, [Map<String, dynamic>? extras]) =>
       _inner.setRating(rating, extras);
+
+  @override
+  @mustCallSuper
+  Future<void> setLike(bool like) => _inner.setLike(like);
 
   @override
   @mustCallSuper
@@ -2832,6 +2852,9 @@ class _ClientIsolatedAudioHandler implements BaseAudioHandler {
       _send('setRating', <dynamic>[rating, extras]);
 
   @override
+  Future<void> setLike(bool like) => _send('setLike', <dynamic>[like]);
+
+  @override
   Future<void> setCaptioningEnabled(bool enabled) =>
       _send('setCaptioningEnabled', <dynamic>[enabled]);
 
@@ -3158,6 +3181,9 @@ class BaseAudioHandler extends AudioHandler {
 
   @override
   Future<void> setRating(Rating rating, [Map<String, dynamic>? extras]) async {}
+
+  @override
+  Future<void> setLike(bool like) async {}
 
   @override
   Future<void> setCaptioningEnabled(bool enabled) async {}
@@ -3981,6 +4007,10 @@ class _HandlerCallbacks extends AudioHandlerCallbacks {
   Future<void> setCaptioningEnabled(
           SetCaptioningEnabledRequest request) async =>
       (await handlerFuture).setCaptioningEnabled(request.enabled);
+
+  @override
+  Future<void> setLike(SetLikeRequest request) async =>
+      (await handlerFuture).setLike(request.like);
 
   @override
   Future<void> setRating(SetRatingRequest request) async =>
