@@ -150,6 +150,8 @@ abstract class AudioHandlerCallbacks {
   /// Set the rating.
   Future<void> setRating(SetRatingRequest request);
 
+  Future<void> setLike(SetLikeRequest request);
+
   Future<void> setCaptioningEnabled(SetCaptioningEnabledRequest request);
 
   /// Set the repeat mode.
@@ -410,6 +412,9 @@ class PlaybackStateMessage {
   /// The index of the current item in the queue, if any.
   final int? queueIndex;
 
+  /// Whether the current item is liked.(iOS only)
+  final bool like;
+
   /// Creates a [PlaybackStateMessage] with given field values, and with [updateTime]
   /// defaulting to [DateTime.now].
   PlaybackStateMessage({
@@ -428,6 +433,7 @@ class PlaybackStateMessage {
     this.shuffleMode = AudioServiceShuffleModeMessage.none,
     this.captioningEnabled = false,
     this.queueIndex,
+    this.like = false,
   })  : assert(androidCompactActionIndices == null ||
             androidCompactActionIndices.length <= 3),
         updateTime = updateTime ?? DateTime.now();
@@ -456,6 +462,7 @@ class PlaybackStateMessage {
             AudioServiceShuffleModeMessage.values[map['shuffleMode'] as int],
         captioningEnabled: map['captioningEnabled'] as bool,
         queueIndex: map['queueIndex'] as int?,
+        like: map['like'] as bool,
       );
 
   Map<String, dynamic> toMap() => <String, dynamic>{
@@ -474,6 +481,7 @@ class PlaybackStateMessage {
         'shuffleMode': shuffleMode.index,
         'captioningEnabled': captioningEnabled,
         'queueIndex': queueIndex,
+        'like': like,
       };
 }
 
@@ -832,9 +840,18 @@ class SetMediaItemRequest {
 
   const SetMediaItemRequest({required this.mediaItem});
 
-  Map<String, dynamic> toMap() => <String, dynamic>{
-        'mediaItem': mediaItem.toMap(),
-      };
+  Map<String, dynamic> toMap() {
+    final map = mediaItem.toMap();
+    final lyricsTitle = mediaItem.extras?['lyricsTitle'] as String?;
+    final lyricsArtist = mediaItem.extras?['lyricsArtist'] as String?;
+    if (lyricsTitle != null) {
+      map['title'] = lyricsTitle;
+      map['artist'] = lyricsArtist;
+    }
+    return <String, dynamic>{
+      'mediaItem': map,
+    };
+  }
 }
 
 class StopServiceRequest {
@@ -1110,6 +1127,17 @@ class SetRatingRequest {
   Map<String, dynamic> toMap() => <String, dynamic>{
         'rating': rating.toMap(),
         'extras': extras,
+      };
+}
+
+class SetLikeRequest {
+  final bool like;
+
+  @literal
+  const SetLikeRequest({required this.like});
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'like': like,
       };
 }
 

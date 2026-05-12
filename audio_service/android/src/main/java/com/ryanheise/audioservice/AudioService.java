@@ -70,7 +70,7 @@ public class AudioService extends MediaBrowserServiceCompat {
     // See the comment in onMediaButtonEvent to understand how the BYPASS keycodes work.
     // We hijack KEYCODE_MUTE and KEYCODE_MEDIA_RECORD since the media session subsystem
     // considers these keycodes relevant to media playback and will pass them on to us.
-    public static final int KEYCODE_BYPASS_PLAY = KeyEvent.KEYCODE_MUTE;
+    public static final int KEYCODE_BYPASS_PLAY = KeyEvent.KEYCODE_MEDIA_PLAY;
     public static final int KEYCODE_BYPASS_PAUSE = KeyEvent.KEYCODE_MEDIA_RECORD;
     public static final int MAX_COMPACT_ACTIONS = 3;
     private static final long AUTO_ENABLED_ACTIONS = PlaybackStateCompat.ACTION_STOP
@@ -948,9 +948,6 @@ public class AudioService extends MediaBrowserServiceCompat {
             final KeyEvent event = (KeyEvent)mediaButtonEvent.getExtras().getParcelable(Intent.EXTRA_KEY_EVENT);
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 switch (event.getKeyCode()) {
-                case KEYCODE_BYPASS_PLAY:
-                    onPlay();
-                    break;
                 case KEYCODE_BYPASS_PAUSE:
                     onPause();
                     break;

@@ -24,6 +24,7 @@ static NSNumber *updateTime = nil;
 static NSNumber *speed = nil;
 static NSNumber *repeatMode = nil;
 static NSNumber *shuffleMode = nil;
+static BOOL like = NO;
 static NSNumber *fastForwardInterval = nil;
 static NSNumber *rewindInterval = nil;
 static MPMediaItemArtwork* artwork = nil;
@@ -114,6 +115,7 @@ static NSMutableDictionary *nowPlayingInfo = nil;
         commandCenter.seekBackwardCommand,
         commandCenter.seekForwardCommand,
         commandCenter.changePlaybackRateCommand,
+        commandCenter.likeCommand,
     ]];
     if (@available(iOS 9.1, macOS 10.12.2, *)) {
         commands[8] = commandCenter.changePlaybackPositionCommand;
@@ -175,6 +177,10 @@ static NSMutableDictionary *nowPlayingInfo = nil;
         speed = stateMap[@"speed"];
         repeatMode = stateMap[@"repeatMode"];
         shuffleMode = stateMap[@"shuffleMode"];
+        like = [stateMap[@"like"] boolValue];
+        commandCenter.changeRepeatModeCommand.currentRepeatType = [repeatMode intValue];
+        commandCenter.changeShuffleModeCommand.currentShuffleType = [shuffleMode intValue];
+        [commandCenter.likeCommand setActive:like];
         updateTime = [NSNumber numberWithLongLong: msSinceEpoch];
         if (playing && !commandCenter) {
 #if TARGET_OS_IPHONE
@@ -322,7 +328,7 @@ static NSMutableDictionary *nowPlayingInfo = nil;
 
 - (void) updateControls {
     if (!commandCenter) return;
-    for (enum MediaAction action = AStop; action <= ASetSpeed; action++) {
+    for (enum MediaAction action = AStop; action <= ASetLike; action++) {
         [self updateControl:action];
     }
     _controlsUpdated = YES;
@@ -451,6 +457,13 @@ static NSMutableDictionary *nowPlayingInfo = nil;
                 [commandCenter.changePlaybackRateCommand removeTarget:nil];
             }
             break;
+        case ASetLike:
+            if (enable) {
+                [commandCenter.likeCommand addTarget:self action:@selector(setLike:)];
+            }else {
+                [commandCenter.likeCommand removeTarget:nil];
+            }
+            break;
         default:
             break;
     }
@@ -479,6 +492,15 @@ static NSMutableDictionary *nowPlayingInfo = nil;
 - (MPRemoteCommandHandlerStatus) previousTrack: (MPRemoteCommandEvent *) event {
     //NSLog(@"previousTrack");
     [handlerChannel invokeMethod:@"skipToPrevious" arguments:@{}];
+    return MPRemoteCommandHandlerStatusSuccess;
+}
+
+- (MPRemoteCommandHandlerStatus) setLike: (MPRemoteCommandEvent *) event {
+    //NSLog(@"setRating");
+    MPFeedbackCommand *likeCommand = (MPFeedbackCommand *)event.command;
+    BOOL lastActive = likeCommand.isActive;
+    [likeCommand setActive:!lastActive];
+    [handlerChannel invokeMethod:@"setLike" arguments:@(!lastActive)];
     return MPRemoteCommandHandlerStatusSuccess;
 }
 
