@@ -174,8 +174,15 @@ class MethodChannelAudioService extends AudioServicePlatform {
                 _castMap(call.arguments['extras'] as Map<dynamic, dynamic>?)));
         return null;
       case 'setLike':
-        await callbacks
-            .setLike(SetLikeRequest(like: call.arguments == 0 ? false : true));
+        final dynamic likeArg = call.arguments;
+        final bool like = likeArg is bool
+            ? likeArg
+            : likeArg is num
+                ? likeArg != 0
+                : _castMap(likeArg is Map<dynamic, dynamic> ? likeArg : null)?['like']
+                        as bool? ??
+                    false;
+        await callbacks.setLike(SetLikeRequest(like: like));
         return null;
       case 'setCaptioningEnabled':
         await callbacks.setCaptioningEnabled(SetCaptioningEnabledRequest(

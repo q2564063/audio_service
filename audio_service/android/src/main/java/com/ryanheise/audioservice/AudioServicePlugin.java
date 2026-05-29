@@ -59,6 +59,8 @@ import android.util.Log;
  * AudioservicePlugin
  */
 public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
+    // This matches audio_service's public MediaAction.setLike index.
+    private static final int MEDIA_ACTION_SET_LIKE = 25;
     private static String flutterEngineId = "audio_service_engine";
     /** Must be called BEFORE any FlutterEngine is created. e.g. in Application class. */
     public static void setFlutterEngineId(String id) {
@@ -792,16 +794,24 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
 
         @Override
         public void onSetRating(RatingCompat rating) {
-            invokeMethod("setRating", mapOf(
-                        "rating", rating2raw(rating),
-                        "extras", null));
+            if (isLikeRating(rating)) {
+                invokeMethod("setLike", likeRatingValue(rating));
+            } else {
+                invokeMethod("setRating", mapOf(
+                            "rating", rating2raw(rating),
+                            "extras", null));
+            }
         }
 
         @Override
         public void onSetRating(RatingCompat rating, Bundle extras) {
-            invokeMethod("setRating", mapOf(
-                        "rating", rating2raw(rating),
-                        "extras", bundleToMap(extras)));
+            if (isLikeRating(rating)) {
+                invokeMethod("setLike", likeRatingValue(rating));
+            } else {
+                invokeMethod("setRating", mapOf(
+                            "rating", rating2raw(rating),
+                            "extras", bundleToMap(extras)));
+            }
         }
 
         @Override
@@ -881,6 +891,7 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
                     int shuffleMode = (Integer)stateMap.get("shuffleMode");
                     Long queueIndex = getLong(stateMap.get("queueIndex"));
                     boolean captioningEnabled = (Boolean)stateMap.get("captioningEnabled");
+                    boolean like = (Boolean)stateMap.get("like");
 
                     // On the flutter side, we represent the update time relative to the epoch.
                     // On the native side, we must represent the update time relative to the boot time.
@@ -888,6 +899,7 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
 
                     List<MediaControl> actions = new ArrayList<>();
                     long actionBits = 0;
+                    boolean likeActionEnabled = false;
                     for (Map<?, ?> rawControl : rawControls) {
                         String resource = (String)rawControl.get("androidIcon");
                         String label = (String)rawControl.get("label");
@@ -903,7 +915,12 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
                         actions.add(new MediaControl(resource, label, actionCode, customAction));
                     }
                     for (Integer rawSystemAction : rawSystemActions) {
-                        long actionCode = 1 << rawSystemAction;
+                        long actionCode = rawSystemAction == MEDIA_ACTION_SET_LIKE
+                                ? PlaybackStateCompat.ACTION_SET_RATING
+                                : 1L << rawSystemAction;
+                        if (rawSystemAction == MEDIA_ACTION_SET_LIKE) {
+                            likeActionEnabled = true;
+                        }
                         actionBits |= actionCode;
                     }
                     int[] compactActionIndices = null;
@@ -927,7 +944,9 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
                             repeatMode,
                             shuffleMode,
                             captioningEnabled,
-                            queueIndex);
+                            queueIndex,
+                            like,
+                            likeActionEnabled);
                     result.success(null);
                     break;
                 }
@@ -1092,6 +1111,16 @@ public class AudioServicePlugin implements FlutterPlugin, ActivityAware {
             raw.put("value", null);
         }
         return raw;
+    }
+
+    private static boolean isLikeRating(RatingCompat rating) {
+        return rating != null
+                && rating.isRated()
+                && rating.getRatingStyle() == RatingCompat.RATING_HEART;
+    }
+
+    private static boolean likeRatingValue(RatingCompat rating) {
+        return rating != null && rating.hasHeart();
     }
 
     private static String metadataToString(MediaMetadataCompat mediaMetadata, String key) {

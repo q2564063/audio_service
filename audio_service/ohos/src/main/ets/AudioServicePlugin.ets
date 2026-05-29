@@ -198,6 +198,9 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
       case 'setLoopMode':
         this.onSetRepeatMode(sessionParameter.params as number)
         break
+      case 'setLike':
+        this.onSetLike(sessionParameter.params as boolean)
+        break
     }
   }
 
@@ -250,5 +253,9 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
     let map: Map<String, Any> = new Map();
     map.set('speed', speed)
     this.invokeMethod('setSpeed', map)
+  }
+
+  onSetLike(like: boolean) {
+    this.invokeMethod('setLike', like)
   }
 }

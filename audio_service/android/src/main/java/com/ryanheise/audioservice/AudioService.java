@@ -279,6 +279,8 @@ public class AudioService extends MediaBrowserServiceCompat {
     private LruCache<String, Bitmap> artBitmapCache;
     private boolean playing = false;
     private AudioProcessingState processingState = AudioProcessingState.idle;
+    private boolean like;
+    private boolean likeActionEnabled;
     private int repeatMode;
     private int shuffleMode;
     private boolean notificationCreated;
@@ -310,6 +312,8 @@ public class AudioService extends MediaBrowserServiceCompat {
         notificationCreated = false;
         playing = false;
         processingState = AudioProcessingState.idle;
+        like = false;
+        likeActionEnabled = false;
         mediaSession = new MediaSessionCompat(this, "media-session");
 
         configure(new AudioServiceConfig(getApplicationContext()));
@@ -500,7 +504,7 @@ public class AudioService extends MediaBrowserServiceCompat {
         return PendingIntent.getBroadcast(this, 0, intent, flags);
     }
 
-    void setState(List<MediaControl> controls, long actionBits, int[] compactActionIndices, AudioProcessingState processingState, boolean playing, long position, long bufferedPosition, float speed, long updateTime, Integer errorCode, String errorMessage, int repeatMode, int shuffleMode, boolean captioningEnabled, Long queueIndex) {
+    void setState(List<MediaControl> controls, long actionBits, int[] compactActionIndices, AudioProcessingState processingState, boolean playing, long position, long bufferedPosition, float speed, long updateTime, Integer errorCode, String errorMessage, int repeatMode, int shuffleMode, boolean captioningEnabled, Long queueIndex, boolean like, boolean likeActionEnabled) {
         boolean notificationChanged = false;
         if (!Arrays.equals(compactActionIndices, this.compactActionIndices)) {
             notificationChanged = true;
@@ -524,6 +528,8 @@ public class AudioService extends MediaBrowserServiceCompat {
         AudioProcessingState oldProcessingState = this.processingState;
         this.processingState = processingState;
         this.playing = playing;
+        this.like = like;
+        this.likeActionEnabled = likeActionEnabled;
         this.repeatMode = repeatMode;
         this.shuffleMode = shuffleMode;
 
@@ -555,6 +561,10 @@ public class AudioService extends MediaBrowserServiceCompat {
         mediaSession.setRepeatMode(repeatMode);
         mediaSession.setShuffleMode(shuffleMode);
         mediaSession.setCaptioningEnabled(captioningEnabled);
+        if (likeActionEnabled) {
+            mediaSession.setRatingType(RatingCompat.RATING_HEART);
+        }
+        applyLikeStateToMetadata();
 
         if (!wasPlaying && playing) {
             enterPlayingState();
@@ -801,7 +811,8 @@ public class AudioService extends MediaBrowserServiceCompat {
             }
         }
         this.mediaMetadata = mediaMetadata;
-        mediaSession.setMetadata(mediaMetadata);
+        applyLikeStateToMetadata();
+        mediaSession.setMetadata(this.mediaMetadata);
         handler.removeCallbacksAndMessages(null);
         handler.post(this::updateNotification);
     }
@@ -811,6 +822,14 @@ public class AudioService extends MediaBrowserServiceCompat {
                 .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artBitmap)
                 .putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, artBitmap)
                 .build();
+    }
+
+    private void applyLikeStateToMetadata() {
+        if (!likeActionEnabled || mediaMetadata == null) return;
+        mediaMetadata = new MediaMetadataCompat.Builder(mediaMetadata)
+                .putRating(MediaMetadataCompat.METADATA_KEY_USER_RATING, RatingCompat.newHeartRating(like))
+                .build();
+        mediaSession.setMetadata(mediaMetadata);
     }
 
     @Override

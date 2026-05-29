@@ -105,7 +105,7 @@ enum MediaAction {
   /// Set speed.
   setSpeed,
 
-  /// Set Like. (only on iOS)
+  /// Set Like.
   setLike,
 
   /// Custom MediaAction.
@@ -236,7 +236,7 @@ class PlaybackState {
   /// The index of the current item in the queue, if any.
   final int? queueIndex;
 
-  /// Whether the current item is liked.(iOS only)
+  /// Whether the current item is liked.
   final bool like;
 
   /// Creates a [PlaybackState] with given field values, and with [updateTime]

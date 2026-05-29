@@ -24,6 +24,5 @@ export enum AudioProcessingState {
 
 export interface SessionParameter {
   type: string
-  params?: string | number
+  params?: string | number | boolean
 }
-

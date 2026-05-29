@@ -412,7 +412,7 @@ class PlaybackStateMessage {
   /// The index of the current item in the queue, if any.
   final int? queueIndex;
 
-  /// Whether the current item is liked.(iOS only)
+  /// Whether the current item is liked.
   final bool like;
 
   /// Creates a [PlaybackStateMessage] with given field values, and with [updateTime]

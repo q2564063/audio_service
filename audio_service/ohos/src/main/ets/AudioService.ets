@@ -37,6 +37,7 @@ export default class AudioService {
   private queueItems: avSession.AVQueueItem[] = []
   private fastForwardInterval: avSession.SkipIntervals = avSession.SkipIntervals.SECONDS_10
   private mediaType: avSession.AVSessionType = 'audio'
+  private like: boolean = false
 
   // 在类属性声明部分添加
   private shuffleMode: number = 0; // 0: 正常模式, 1: 随机模式
@@ -188,6 +189,9 @@ export default class AudioService {
       }
 
       aVPlaybackState.loopMode = mediaItem.get('repeatMode')
+      if (mediaItem.has('like')) {
+        this.like = mediaItem.get('like') as boolean
+      }
       if (mediaItem.has('speed')) {
         let speed: number = mediaItem.get('speed')
         aVPlaybackState.speed = speed
@@ -396,9 +400,10 @@ export default class AudioService {
     session.on('toggleFavorite', (assetId) => {
       Log.i(TAG, `on toggleFavorite , the target asset Id is ${assetId}`);
       try {
+        this.like = !this.like
         if (this.sessionCallback) {
           this.sessionCallback({
-            type: 'toggleFavorite', params: assetId
+            type: 'setLike', params: this.like
           })
         }
       } catch (e) {
