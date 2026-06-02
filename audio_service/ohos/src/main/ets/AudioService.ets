@@ -23,6 +23,10 @@ import { JSON } from '@kit.ArkTS';
 import { audio } from '@kit.AudioKit';
 
 const TAG: string = "AudioService";
+const AUDIO_SERVICE_SHUFFLE_MODE_NONE = 0;
+const AUDIO_SERVICE_REPEAT_MODE_NONE = 0;
+const AUDIO_SERVICE_REPEAT_MODE_ONE = 1;
+const AUDIO_SERVICE_REPEAT_MODE_ALL = 2;
 
 export default class AudioService {
 
@@ -38,8 +42,11 @@ export default class AudioService {
   private fastForwardInterval: avSession.SkipIntervals = avSession.SkipIntervals.SECONDS_10
   private mediaType: avSession.AVSessionType = 'audio'
   private like: boolean = false
+  private currentAssetId: string = '0'
+  private favoriteStates: Map<string, boolean> = new Map()
+  private pendingFavoriteAssetId: string | null = null
+  private pendingFavoriteValue: boolean | null = null
 
-  // 在类属性声明部分添加
   private shuffleMode: number = 0; // 0: 正常模式, 1: 随机模式
   private originalQueue: avSession.AVQueueItem[] = [];
   private shuffledQueue: avSession.AVQueueItem[] = [];
@@ -142,12 +149,19 @@ export default class AudioService {
           this.avMetadata.previousAssetId = this.queueItems[index-1].description?.assetId
         }
       }
-      this.avMetadata.assetId = mediaItem.get('id')
+      const nextAssetId = mediaItem.get('id') as string
+      if (this.currentAssetId != nextAssetId) {
+        this.pendingFavoriteAssetId = null
+        this.pendingFavoriteValue = null
+      }
+      this.currentAssetId = nextAssetId
+      this.avMetadata.assetId = this.currentAssetId
       this.avMetadata.title = mediaItem.get('title')
       this.avMetadata.mediaImage = mediaItem.get('artUri')
       this.avMetadata.artist = mediaItem.get('artist')
       this.avMetadata.duration = mediaItem.get('duration')
       this.avMetadata.skipIntervals = this.fastForwardInterval
+      this.like = this.favoriteStates.get(this.currentAssetId) ?? this.like
       Log.e(TAG, "AudioService setMediaItem " + JSON.stringify(this.avMetadata));
       if (this.session != null) {
         await this.session.setAVMetadata(this.avMetadata)
@@ -188,10 +202,14 @@ export default class AudioService {
         }
       }
 
-      aVPlaybackState.loopMode = mediaItem.get('repeatMode')
+      let repeatMode = mediaItem.get('repeatMode') as number;
+      let shuffleMode = mediaItem.get('shuffleMode') as number;
+      this.shuffleMode = shuffleMode == AUDIO_SERVICE_SHUFFLE_MODE_NONE ? 0 : 1;
+      aVPlaybackState.loopMode = this.mapToLoopMode(repeatMode, shuffleMode)
       if (mediaItem.has('like')) {
-        this.like = mediaItem.get('like') as boolean
+        this.applyIncomingFavoriteState(mediaItem.get('like') as boolean)
       }
+      aVPlaybackState.isFavorite = this.like
       if (mediaItem.has('speed')) {
         let speed: number = mediaItem.get('speed')
         aVPlaybackState.speed = speed
@@ -206,6 +224,52 @@ export default class AudioService {
       Log.e(TAG, "AudioService setAVPlaybackState catch " + JSON.stringify(e));
     }
 
+  }
+
+  private applyIncomingFavoriteState(like: boolean) {
+    if (this.pendingFavoriteAssetId != null && this.pendingFavoriteAssetId == this.currentAssetId) {
+      if (this.pendingFavoriteValue === like) {
+        this.pendingFavoriteAssetId = null
+        this.pendingFavoriteValue = null
+      } else {
+        // Ignore stale Dart state until the lock-screen toggle is acknowledged.
+        return
+      }
+    }
+    this.like = like
+    this.favoriteStates.set(this.currentAssetId, like)
+  }
+
+  private toggleFavoriteState(assetId?: string): boolean {
+    const targetAssetId = assetId ?? this.currentAssetId
+    const currentFavorite =
+      this.favoriteStates.get(this.currentAssetId)
+      ?? this.favoriteStates.get(targetAssetId)
+      ?? this.like
+    const nextFavorite = !currentFavorite
+    Log.i(TAG, `toggleFavoriteState targetAssetId=${targetAssetId}, currentAssetId=${this.currentAssetId}, currentFavorite=${currentFavorite}, nextFavorite=${nextFavorite}`);
+    this.like = nextFavorite
+    this.favoriteStates.set(this.currentAssetId, nextFavorite)
+    if (targetAssetId != this.currentAssetId) {
+      this.favoriteStates.set(targetAssetId, nextFavorite)
+    }
+    this.pendingFavoriteAssetId = this.currentAssetId
+    this.pendingFavoriteValue = nextFavorite
+    return nextFavorite
+  }
+
+  private async syncFavoriteState() {
+    if (this.session == null) {
+      return
+    }
+    try {
+      await this.session.setAVPlaybackState({
+        isFavorite: this.like
+      })
+      await this.session.activate()
+    } catch (e) {
+      Log.e(TAG, "AudioService syncFavoriteState catch " + JSON.stringify(e));
+    }
   }
 
   async startContinuousTask() {
@@ -390,7 +454,7 @@ export default class AudioService {
       try {
         if (this.sessionCallback) {
           this.sessionCallback({
-            type: 'setLoopMode', params: mode == 2 ? 0 : mode + 1
+            type: 'setLoopMode', params: mode
           })
         }
       } catch (e) {
@@ -400,10 +464,11 @@ export default class AudioService {
     session.on('toggleFavorite', (assetId) => {
       Log.i(TAG, `on toggleFavorite , the target asset Id is ${assetId}`);
       try {
-        this.like = !this.like
+        const like = this.toggleFavoriteState(assetId)
+        this.syncFavoriteState()
         if (this.sessionCallback) {
           this.sessionCallback({
-            type: 'setLike', params: this.like
+            type: 'setLike', params: like
           })
         }
       } catch (e) {
@@ -414,6 +479,21 @@ export default class AudioService {
 
 
   // 在类方法部分添加（在 release() 方法之前）
+
+  private mapToLoopMode(repeatMode: number, shuffleMode: number): avSession.LoopMode {
+    if (shuffleMode != AUDIO_SERVICE_SHUFFLE_MODE_NONE) {
+      return avSession.LoopMode.LOOP_MODE_SHUFFLE;
+    }
+    switch (repeatMode) {
+      case AUDIO_SERVICE_REPEAT_MODE_ONE:
+        return avSession.LoopMode.LOOP_MODE_SINGLE;
+      case AUDIO_SERVICE_REPEAT_MODE_ALL:
+        return avSession.LoopMode.LOOP_MODE_LIST;
+      case AUDIO_SERVICE_REPEAT_MODE_NONE:
+      default:
+        return avSession.LoopMode.LOOP_MODE_SEQUENCE;
+    }
+  }
 
   // 获取随机播放模式 - 必须返回 number 类型
   getShuffleMode(): number {

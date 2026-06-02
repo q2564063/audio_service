@@ -31,6 +31,15 @@ import { SessionParameter } from './AudioProcessingState';
 import { JSON } from '@kit.ArkTS';
 
 const TAG: string = "AudioServicePlugin";
+const OHOS_LOOP_MODE_SEQUENCE = 0;
+const OHOS_LOOP_MODE_SINGLE = 1;
+const OHOS_LOOP_MODE_LIST = 2;
+const OHOS_LOOP_MODE_SHUFFLE = 3;
+// const AUDIO_SERVICE_REPEAT_MODE_NONE = 0;
+const AUDIO_SERVICE_REPEAT_MODE_ONE = 1;
+const AUDIO_SERVICE_REPEAT_MODE_ALL = 2;
+const AUDIO_SERVICE_SHUFFLE_MODE_NONE = 0;
+const AUDIO_SERVICE_SHUFFLE_MODE_ALL = 1;
 
 const CHANNEL_CLIENT = "com.ryanheise.audio_service.client.methods";
 const CHANNEL_HANDLER = "com.ryanheise.audio_service.handler.methods";
@@ -196,7 +205,7 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
         this.onSeekTo(sessionParameter.params as number)
         break
       case 'setLoopMode':
-        this.onSetRepeatMode(sessionParameter.params as number)
+        this.onSetLoopMode(sessionParameter.params as number)
         break
       case 'setLike':
         this.onSetLike(sessionParameter.params as boolean)
@@ -238,14 +247,55 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
     this.invokeMethod('seek', map)
   }
 
+  onSetLoopMode(loopMode: number) {
+    const nextLoopMode = this.toNextLockScreenLoopMode(loopMode);
+    this.onSetShuffleMode(this.toAudioServiceShuffleMode(nextLoopMode));
+    if (nextLoopMode != OHOS_LOOP_MODE_SHUFFLE) {
+      this.onSetRepeatMode(this.toAudioServiceRepeatMode(nextLoopMode));
+    }
+  }
+
   onSetRepeatMode(repeatMode: number) {
     let map: Map<String, Any> = new Map();
-    if (repeatMode == 3) {
-      map.set('shuffleMode', 0)
-      this.invokeMethod('setShuffleMode', map)
-    } else {
-      map.set('repeatMode', repeatMode)
-      this.invokeMethod('setRepeatMode', map)
+    map.set('repeatMode', repeatMode)
+    this.invokeMethod('setRepeatMode', map)
+  }
+
+  onSetShuffleMode(shuffleMode: number) {
+    let map: Map<String, Any> = new Map();
+    map.set('shuffleMode', shuffleMode)
+    this.invokeMethod('setShuffleMode', map)
+  }
+
+  private toAudioServiceRepeatMode(loopMode: number): number {
+    switch (loopMode) {
+      case OHOS_LOOP_MODE_SINGLE:
+        return AUDIO_SERVICE_REPEAT_MODE_ONE;
+      case OHOS_LOOP_MODE_LIST:
+      case OHOS_LOOP_MODE_SEQUENCE:
+      case OHOS_LOOP_MODE_SHUFFLE:
+        return AUDIO_SERVICE_REPEAT_MODE_ALL;
+      default:
+        return AUDIO_SERVICE_REPEAT_MODE_ALL;
+    }
+  }
+
+  private toAudioServiceShuffleMode(loopMode: number): number {
+    return loopMode == OHOS_LOOP_MODE_SHUFFLE
+      ? AUDIO_SERVICE_SHUFFLE_MODE_ALL
+      : AUDIO_SERVICE_SHUFFLE_MODE_NONE;
+  }
+
+  private toNextLockScreenLoopMode(loopMode: number): number {
+    switch (loopMode) {
+      case OHOS_LOOP_MODE_SEQUENCE:
+      case OHOS_LOOP_MODE_LIST:
+        return OHOS_LOOP_MODE_SINGLE;
+      case OHOS_LOOP_MODE_SINGLE:
+        return OHOS_LOOP_MODE_SHUFFLE;
+      case OHOS_LOOP_MODE_SHUFFLE:
+      default:
+        return OHOS_LOOP_MODE_SEQUENCE;
     }
   }
 
@@ -256,6 +306,8 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
   }
 
   onSetLike(like: boolean) {
-    this.invokeMethod('setLike', like)
+    let map: Map<String, Any> = new Map();
+    map.set('like', like)
+    this.invokeMethod('setLike', map)
   }
 }
