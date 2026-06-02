@@ -175,13 +175,7 @@ class MethodChannelAudioService extends AudioServicePlatform {
         return null;
       case 'setLike':
         final dynamic likeArg = call.arguments;
-        final bool like = likeArg is bool
-            ? likeArg
-            : likeArg is num
-                ? likeArg != 0
-                : _castMap(likeArg is Map<dynamic, dynamic> ? likeArg : null)?['like']
-                        as bool? ??
-                    false;
+        final bool like = _readLikeValue(likeArg);
         await callbacks.setLike(SetLikeRequest(like: like));
         return null;
       case 'setCaptioningEnabled':
@@ -268,3 +262,31 @@ class MethodChannelAudioService extends AudioServicePlatform {
 @pragma('vm:prefer-inline')
 Map<String, dynamic>? _castMap(Map<dynamic, dynamic>? map) =>
     map?.cast<String, dynamic>();
+
+bool _readLikeValue(dynamic likeArg) {
+  if (likeArg is Map<dynamic, dynamic>) {
+    return _readBoolValue(_castMap(likeArg)?['like']);
+  }
+  return _readBoolValue(likeArg);
+}
+
+bool _readBoolValue(dynamic value, {bool fallback = false}) {
+  if (value is bool) {
+    return value;
+  }
+  if (value is num) {
+    return value != 0;
+  }
+  if (value is String) {
+    switch (value.toLowerCase()) {
+      case 'true':
+      case '1':
+        return true;
+      case 'false':
+      case '0':
+      case '':
+        return false;
+    }
+  }
+  return fallback;
+}
